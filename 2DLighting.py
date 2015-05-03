@@ -41,15 +41,14 @@ class Light:
 		self.pos,self.strength=pos,strength
 		self.lines=[]
 		self.line_thickness=(self.strength/30)
+		self.LOD=self.strength/25
 		for i in range(0,360):
 			self.lines.append((sin(i),cos(i)))
 		self.recalced_without_objects=True
-		self.check_rays([],True)
+		self.check_rays([])
 
-	def check_rays(self,objects,creatinglines=False):
-		objects=self.refine_objs(objects)
-		if len(objects)==0 and not creatinglines and self.recalced_without_objects:
-			return 
+	def check_rays(self,objects):
+
 		lines_to_recalc=[]
 		self.rays=[]
 		self.poly=[]
@@ -77,26 +76,30 @@ class Light:
 			if dist(self.pos,obj)<self.strength:
 				toreturn.append(obj)
 		return toreturn
+	def update(self,objects):
+		objects=self.refine_objs(objects)
+		if len(objects)>0 or not self.recalced_without_objects:
+			self.check_rays(objects)
 
 class Window:
 	def __init__(self):
 		pygame.init()
 		self.screen=pygame.display.set_mode((WIDTH,HEIGHT))
 		self.objects=[(50,50)]
-		self.lights=[Light((WIDTH/2,HEIGHT/2),100)]
+		self.lights=[Light((WIDTH/2,HEIGHT/2),25)]
 
 	def draw(self):
-		for light in self.lights:
-			for line in light.rays:
-				if DRAW_LIGHT_AS_LINES:
-					pygame.draw.lines(self.screen,(0,255,0),False,line,light.line_thickness)
-				else:
-					pygame.draw.polygon(self.screen,(0,255,0),light.poly,0)
 		for obj in self.objects:
 			pygame.draw.circle(self.screen,(0,0,0),obj,OBJ_RADIUS,0)
+		for light in self.lights:
+			if DRAW_LIGHT_AS_LINES:
+				for line in light.rays:
+					pygame.draw.lines(self.screen,(0,255,0),False,line,light.line_thickness)
+			else:
+				pygame.draw.polygon(self.screen,(0,255,0),light.poly[::light.LOD],0)
 
 	def recalc_lights(self):
-		self.objects[0]=pygame.mouse.get_pos()
+
 		for light in self.lights:
 			light.check_rays(self.objects)
 
@@ -105,11 +108,14 @@ class Window:
 			for event in pygame.event.get():
 				if event.type==pygame.QUIT:
 					self.quit()
-				if event.type==pygame.MOUSEMOTION:
-					self.recalc_lights()
+				
 			self.screen.fill((255,255,255))
+			self.objects[0]=pygame.mouse.get_pos()
+			for l in self.lights:
+				l.update(self.objects)
 			self.draw()
-			pygame.display.flip()
+			
+			pygame.display.update()
 	
 	def quit(self):
 		pygame.quit();sys.exit()
