@@ -1,8 +1,10 @@
 #!/usr/bin/env python
+import pygame,sys,random,math
 WIDTH=640	
 HEIGHT=480
 OBJ_RADIUS=5
-import pygame,sys,random,math
+DRAW_LIGHT_AS_LINES=False
+
 
 
 def floatrange(start,end,interval):
@@ -30,23 +32,7 @@ def cast_ray(ray,start_point,length,objects):
 				smallest_length=distance
 	endpoint=[int(start_point[0]+(ray[0]*smallest_length)),int(start_point[1]+(ray[1]*smallest_length))]
 	return endpoint
-def calc_bearing1(pointA, pointB):
-    lat1 = math.radians(pointA[0])
-    lat2 = math.radians(pointB[0])
- 
-    diffLong = math.radians(pointB[1] - pointA[1])
- 
-    x = math.sin(diffLong) * math.cos(lat2)
-    y = math.cos(lat1) * math.sin(lat2) - (math.sin(lat1)
-            * math.cos(lat2) * math.cos(diffLong))
- 
-    initial_bearing = math.atan2(x, y)
- 
 
-    initial_bearing = math.degrees(initial_bearing)
-    compass_bearing = (initial_bearing + 360) % 360
- 
-    return int(compass_bearing)
 
 def calc_bearing(p1,p2):
 	xdist=p2[0]-p1[0]
@@ -65,11 +51,15 @@ class Light:
 	def check_rays(self,objects,creatinglines=False):
 		objects=self.refine_objs(objects)
 		if len(objects)==0 and not creatinglines and self.recalced_without_objects:
+
 			return 
 		lines_to_recalc=[]
 		self.rays=[]
+		self.poly=[]
 		for line in self.lines:
-			self.rays.append([self.pos,[int(self.pos[0]+(line[0]*self.strength)),int(self.pos[1]+(line[1]*self.strength))]])
+			endpoint=[int(self.pos[0]+(line[0]*self.strength)),int(self.pos[1]+(line[1]*self.strength))]
+			self.rays.append([self.pos,endpoint])
+			self.poly.append(endpoint)
 		for obj in objects:
 			bearing=calc_bearing(self.pos,obj)
 			degree_diff=int(20*(1.0-(dist(self.pos,obj)/self.strength)))
@@ -78,6 +68,7 @@ class Light:
 		for degree in lines_to_recalc:
 			d=degree-1
 			self.rays[d]=[self.pos,cast_ray(self.lines[d],self.pos,self.strength,objects)]
+			self.poly[d]=cast_ray(self.lines[d],self.pos,self.strength,objects)
 		if len(objects)==0:
 			self.recalced_without_objects=True
 		else:
@@ -95,19 +86,15 @@ class Window:
 	def __init__(self):
 		pygame.init()
 		self.screen=pygame.display.set_mode((WIDTH,HEIGHT))
-		#self.bitmask=[]#x,y
-		#for i in range(WIDTH):
-		#	self.bitmask.append([])
-		#	for j in range(HEIGHT):
-		#		self.bitmask[i].append(random.randint(0,255))
 		self.objects=[(50,50)]
 		self.lights=[Light((WIDTH/2,HEIGHT/2),100)]
 	def draw(self):
 		for light in self.lights:
-
 			for line in light.rays:
-				pygame.draw.lines(self.screen,(0,255,0),False,line,light.line_thickness)
-				pass
+				if DRAW_LIGHT_AS_LINES:
+					pygame.draw.lines(self.screen,(0,255,0),False,line,light.line_thickness)
+				else:
+					pygame.draw.polygon(self.screen,(0,255,0),light.poly,0)
 		for obj in self.objects:
 			pygame.draw.circle(self.screen,(0,0,0),obj,OBJ_RADIUS,0)
 	def recalc_lights(self):
