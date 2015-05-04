@@ -80,7 +80,7 @@ class CircleObject(Object):
 		screen.blit(surf,(0,0))
 
 class Light:
-	def __init__(self,pos,total_strength):
+	def __init__(self,pos,total_strength,color=LIGHT_COLOR):
 		self.pos,self.total_strength=pos,total_strength
 		self.lines=[]
 		self.line_thickness=(self.total_strength/30)
@@ -94,6 +94,9 @@ class Light:
 			self.strength.append(self.total_strength)
 		self.recalced_without_objects=True
 		self.check_rays([])
+		if len(color)==3:
+			color.append(61)
+		self.color=color
 
 	def check_rays(self,objects):
 		lines_to_recalc=[]
@@ -115,8 +118,7 @@ class Light:
 			if rayData[1] not in objs_hit:
 				objs_hit.append(rayData[1])	
 		for obj in objs_hit:
-			obj.add_light_color(LIGHT_COLOR,1.0-(dist(self.pos,obj)/self.total_strength))		
-			#rayData[1].add_brightness(0.1)
+			obj.add_light_color(self.color,1.0-(dist(self.pos,obj)/self.total_strength))		
 		if len(objects)==0:
 			self.recalced_without_objects=True
 		else:
@@ -138,7 +140,7 @@ class Light:
 	def draw(self,screen):
 		surf=pygame.Surface((WIDTH,HEIGHT)).convert_alpha()
 		surf.fill((0,0,0,0))
-		pygame.draw.polygon(surf,LIGHT_COLOR,self.poly[::self.LOD],0)
+		pygame.draw.polygon(surf,self.color,self.poly[::self.LOD],0)
 		screen.blit(surf, (0,0))
 
 class Window:
@@ -146,7 +148,7 @@ class Window:
 		pygame.init()
 		self.screen=pygame.display.set_mode((WIDTH,HEIGHT))
 		self.objects=[CircleObject((250,250))]
-		self.lights=[Light((200,200),60),Light((220,220),100),Light((200,200),200)]
+		self.lights=[Light((200,200),60,[0,255,0]),Light((220,220),100),Light((200,200),200)]
 		self.clock=pygame.time.Clock()		
 	def draw(self):
 		for obj in self.objects:
