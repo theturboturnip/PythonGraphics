@@ -96,7 +96,7 @@ class CircleObject(Object):
 	def longest_length(self,pos):
 		return int(dist(self.pos,pos)+(self.radius*0.75))
 class RectObject(Object):
-	def __init__(self,pos=[0,0],w=0,h=0,color=OBJ_COLOR):
+	def __init__(self,pos=[0,0],w=20,h=0,color=OBJ_COLOR):
 		if h==0:
 			h=w
 		pos+=[h,w]
@@ -222,9 +222,11 @@ class Window:
 	def __init__(self):
 		pygame.init()
 		self.screen=pygame.display.set_mode((WIDTH,HEIGHT))
-		self.objects=[SpriteObject([250,250])]
+		self.objects=[CircleObject([250,250],20)]
 		self.lights=[Light((200,200),200)]
 		self.clock=pygame.time.Clock()		
+		self.obj_type=0
+		self.change_player_obj()
 	def draw(self):
 		for obj in self.objects:
 			obj.draw(self.screen)
@@ -234,17 +236,27 @@ class Window:
 	def recalc_lights(self):
 		for light in self.lights:
 			light.check_rays(self.objects)
-
+	def change_player_obj(self):
+		types=[CircleObject,RectObject,SpriteObject]
+		self.obj_type=clamp(self.obj_type,0,2)
+		self.objects[0]=types[self.obj_type](self.objects[0].pos[:2])
+		
 	def loop(self):
 		while True:
 			deltaTime=self.clock.tick(30)/1000
 			for event in pygame.event.get():
 				if event.type==pygame.QUIT:
 					self.quit()
+				if event.type==pygame.KEYDOWN:
+					if event.key==pygame.K_UP:
+						self.obj_type-=1
+					elif event.key==pygame.K_DOWN:
+						self.obj_type+=1
+					self.change_player_obj()
 			self.screen.fill(CLEAR_COLOR)
 			for o in self.objects:
 				o.update()
-			self.objects[0].change_pos(pygame.mouse.get_pos())
+			self.objects[0].change_pos(list(pygame.mouse.get_pos()))
 			for l in self.lights:
 				l.update(self.objects)
 			
