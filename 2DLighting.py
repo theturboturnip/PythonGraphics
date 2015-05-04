@@ -4,6 +4,8 @@ WIDTH=640
 HEIGHT=480
 OBJ_RADIUS=5
 DRAW_LIGHT_AS_LINES=False
+LIGHT_COLOR=(255,255,0,122)
+CLEAR_COLOR=(0,0,0)
 
 def floatrange(start,end,interval):
 	toreturn=[]
@@ -84,13 +86,16 @@ class Light:
 		objects=self.refine_objs(objects)
 		if len(objects)>0 or not self.recalced_without_objects:
 			self.check_rays(objects)
+	def change_pos(self,pos):
+		self.pos=pos
+		self.check_rays([])
 
 class Window:
 	def __init__(self):
 		pygame.init()
 		self.screen=pygame.display.set_mode((WIDTH,HEIGHT))
-		self.objects=[(50,50)]
-		self.lights=[Light((200,200),200),Light((220,220),100)]
+		self.objects=[]#(50,50)]
+		self.lights=[Light((200,200),60),Light((220,220),100),Light((200,200),200)]
 		self.clock=pygame.time.Clock()		
 	def draw(self):
 		for obj in self.objects:
@@ -106,7 +111,7 @@ class Window:
 					pygame.draw.lines(self.screen,(0,255,0),False,line,light.line_thickness)
 			else:
 				surf.fill((0,0,0,0))
-				pygame.draw.polygon(surf,(0,255,0,61),light.poly[::light.LOD],0)
+				pygame.draw.polygon(surf,LIGHT_COLOR,light.poly[::light.LOD],0)
 				self.screen.blit(surf, (0,0))
 
 	def recalc_lights(self):
@@ -118,8 +123,8 @@ class Window:
 			for event in pygame.event.get():
 				if event.type==pygame.QUIT:
 					self.quit()
-			self.screen.fill((255,255,255))
-			self.objects[0]=pygame.mouse.get_pos()
+			self.screen.fill(CLEAR_COLOR)
+			self.lights[0].change_pos(pygame.mouse.get_pos())
 			for l in self.lights:
 				l.update(self.objects)
 			self.draw()
