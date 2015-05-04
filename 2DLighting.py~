@@ -63,6 +63,7 @@ class Light:
 		for obj in objects:
 			bearing=calc_bearing(self.pos,obj)
 			degree_diff=int(90*(1.0-(dist(self.pos,obj)/self.total_strength)))
+			print degree_diff
 			for i in range(bearing-degree_diff,bearing+degree_diff):
 				lines_to_recalc.append(i)
 		for degree in lines_to_recalc:
