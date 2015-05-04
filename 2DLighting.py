@@ -3,7 +3,8 @@ import pygame,sys,random,math
 WIDTH=640	
 HEIGHT=480
 OBJ_RADIUS=5
-DRAW_LIGHT_AS_LINES=False
+OBJ_COLOR=(255,255,255)
+DRAW_LIGHT_AS_LINES=True
 LIGHT_COLOR=(255,255,0,122)
 CLEAR_COLOR=(0,0,0)
 
@@ -24,19 +25,59 @@ def dist(p1,p2):
 	return math.sqrt((xdist**2)+(ydist**2))
 def cast_ray(ray,start_point,length,objects):
 	smallest_length=length
+	closest_object=objects[0]
 	for obj in objects:
 		distance=dist(obj,start_point)
 		point=[int(start_point[0]+(ray[0]*distance)),int(start_point[1]+(ray[1]*distance))]
-		if dist(obj,point)<OBJ_RADIUS:
+		if obj.colliding(point):
 			if smallest_length>distance:
 				smallest_length=distance
+				closest_object=obj
+	
 	endpoint=[int(start_point[0]+(ray[0]*smallest_length)),int(start_point[1]+(ray[1]*smallest_length))]
-	return endpoint
+	return endpoint,closest_object
 def calc_bearing(p1,p2):
 	xdist=p2[0]-p1[0]
 	ydist=p2[1]-p1[1]
 	return int(math.degrees(math.atan2(xdist,ydist)))
+def clamp(toclamp,min_,max_):
+	if toclamp<min_:
+		return min_
+	if toclamp>max_:
+		return max_
+	return toclamp
 
+class Object:
+	def __init__(self,pos=(0,0),color=OBJ_COLOR):
+		self.pos=pos
+		self.color=color
+		self.light_color=(0,0,0,0)
+	def __getitem__(self,index):
+		return self.pos[index]
+	def colliding(self,point):
+		return False
+	def set_pos(self,pos):
+		self.pos=pos
+	def add_light_color(self,color,amount=1.0):
+		self.light_color=[clamp(int(self.light_color[i]+(color[i]*amount)),0,255) for i in range(0,4)]
+	def draw(self,screen):
+		pass
+	def update(self):
+		self.light_color=(0,0,0,0)
+
+class CircleObject(Object):
+	def __init__(self,pos=(0,0),radius=OBJ_RADIUS,color=OBJ_COLOR):
+		Object.__init__(self,pos,color)
+		self.radius=radius
+	def colliding(self,point):
+		return dist(self.pos,point)<=self.radius
+	def draw(self,screen):
+		surf=pygame.Surface((WIDTH,HEIGHT)).convert_alpha()
+		surf.fill((0,0,0,0))
+
+		pygame.draw.circle(screen,self.color,self.pos,self.radius,0)
+		pygame.draw.circle(surf,self.light_color,self.pos,self.radius,0)
+		screen.blit(surf,(0,0))
 
 class Light:
 	def __init__(self,pos,total_strength):
@@ -46,6 +87,7 @@ class Light:
 		self.LOD=self.total_strength/50
 		if self.LOD<1:
 			self.LOD=1
+		self.LOD=1
 		self.strength=[]
 		for i in range(0,360):
 			self.lines.append((sin(i),cos(i)))
@@ -55,12 +97,11 @@ class Light:
 
 	def check_rays(self,objects):
 		lines_to_recalc=[]
-		self.rays=[]
 		self.poly=[]
+		objs_hit=[]
 		for i in range(len(self.lines)):
 			line=self.lines[i]
 			endpoint=[int(self.pos[0]+(line[0]*self.strength[i])),int(self.pos[1]+(line[1]*self.strength[i]))]
-			self.rays.append([self.pos,endpoint])
 			self.poly.append(endpoint)
 		for obj in objects:
 			bearing=calc_bearing(self.pos,obj)
@@ -69,8 +110,13 @@ class Light:
 				lines_to_recalc.append(i)
 		for degree in lines_to_recalc:
 			d=degree-1
-			self.rays[d]=[self.pos,cast_ray(self.lines[d],self.pos,self.strength[d],objects)]
-			self.poly[d]=cast_ray(self.lines[d],self.pos,self.strength[d],objects)
+			rayData=cast_ray(self.lines[d],self.pos,self.strength[d],objects)
+			self.poly[d]=rayData[0]
+			if rayData[1] not in objs_hit:
+				objs_hit.append(rayData[1])	
+		for obj in objs_hit:
+			obj.add_light_color(LIGHT_COLOR,1.0-(dist(self.pos,obj)/self.total_strength))		
+			#rayData[1].add_brightness(0.1)
 		if len(objects)==0:
 			self.recalced_without_objects=True
 		else:
@@ -89,30 +135,24 @@ class Light:
 	def change_pos(self,pos):
 		self.pos=pos
 		self.check_rays([])
+	def draw(self,screen):
+		surf=pygame.Surface((WIDTH,HEIGHT)).convert_alpha()
+		surf.fill((0,0,0,0))
+		pygame.draw.polygon(surf,LIGHT_COLOR,self.poly[::self.LOD],0)
+		screen.blit(surf, (0,0))
 
 class Window:
 	def __init__(self):
 		pygame.init()
 		self.screen=pygame.display.set_mode((WIDTH,HEIGHT))
-		self.objects=[]#(50,50)]
+		self.objects=[CircleObject((250,250))]
 		self.lights=[Light((200,200),60),Light((220,220),100),Light((200,200),200)]
 		self.clock=pygame.time.Clock()		
 	def draw(self):
 		for obj in self.objects:
-			pygame.draw.circle(self.screen,(0,0,0),obj,OBJ_RADIUS,0)
-		self.draw_lights()
-		
-	def draw_lights(self):
-		deltaTime=self.clock.tick(30)/1000
-		surf=pygame.Surface((WIDTH,HEIGHT)).convert_alpha()
+			obj.draw(self.screen)
 		for light in self.lights:
-			if DRAW_LIGHT_AS_LINES:
-				for line in light.rays:
-					pygame.draw.lines(self.screen,(0,255,0),False,line,light.line_thickness)
-			else:
-				surf.fill((0,0,0,0))
-				pygame.draw.polygon(surf,LIGHT_COLOR,light.poly[::light.LOD],0)
-				self.screen.blit(surf, (0,0))
+			light.draw(self.screen)
 
 	def recalc_lights(self):
 		for light in self.lights:
@@ -120,13 +160,17 @@ class Window:
 
 	def loop(self):
 		while True:
+			deltaTime=self.clock.tick(30)/1000
 			for event in pygame.event.get():
 				if event.type==pygame.QUIT:
 					self.quit()
 			self.screen.fill(CLEAR_COLOR)
+			for o in self.objects:
+				o.update()
 			self.lights[0].change_pos(pygame.mouse.get_pos())
 			for l in self.lights:
 				l.update(self.objects)
+			
 			self.draw()
 			
 			pygame.display.update()
