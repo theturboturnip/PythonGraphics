@@ -262,7 +262,7 @@ class Window:
 			
 			self.draw()
 			
-			pygame.display.update()
+			pygame.display.flip()
 	
 	def quit(self):
 		pygame.quit();sys.exit()

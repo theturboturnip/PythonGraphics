@@ -239,7 +239,7 @@ class Window:
 	def change_player_obj(self):
 		types=[CircleObject,RectObject,SpriteObject]
 		self.obj_type=clamp(self.obj_type,0,2)
-		self.objects[0]=types[self.obj_type](self.objects[0].pos)
+		self.objects[0]=types[self.obj_type](self.objects[0].pos[:2])
 		
 	def loop(self):
 		while True:
