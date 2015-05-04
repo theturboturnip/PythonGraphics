@@ -179,7 +179,7 @@ class Light:
 			self.poly.append(endpoint)
 		for obj in objects:
 			bearing=calc_bearing(self.pos,obj)
-			degree_diff=90#int(90*(1.0-(dist(self.pos,obj)/self.total_strength)))
+			degree_diff=int(90*(1.0-(dist(self.pos,obj)/self.total_strength)))
 			for i in range(bearing-degree_diff,bearing+degree_diff):
 				lines_to_recalc.append(i)
 			if obj.colliding(self.pos):

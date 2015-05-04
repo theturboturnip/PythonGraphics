@@ -144,12 +144,10 @@ class SpriteObject(RectObject):
 		screen.blit(self.image,self.pos[:2])
 	def colliding(self,point):
 		relpoint=[point[i]-self.pos[i] for i in range(2)]
-
 		if relpoint[0]>=self.w or 0>relpoint[0]:	
 			return False
 		if relpoint[1]>=self.h or 0>relpoint[1]:
 			return False
-		print relpoint,self.w,self.h
 		return self.image.get_at(relpoint).a>0
 	
 class Light:
@@ -181,7 +179,7 @@ class Light:
 			self.poly.append(endpoint)
 		for obj in objects:
 			bearing=calc_bearing(self.pos,obj)
-			degree_diff=90#int(90*(1.0-(dist(self.pos,obj)/self.total_strength)))
+			degree_diff=int(900*(1.0-(dist(self.pos,obj)/self.total_strength)))
 			for i in range(bearing-degree_diff,bearing+degree_diff):
 				lines_to_recalc.append(i)
 			if obj.colliding(self.pos):
@@ -224,8 +222,6 @@ class Window:
 	def __init__(self):
 		pygame.init()
 		self.screen=pygame.display.set_mode((WIDTH,HEIGHT))
-		s= SpriteObject(pos=[350,350])
-		print s
 		self.objects=[SpriteObject([250,250])]
 		self.lights=[Light((200,200),200)]
 		self.clock=pygame.time.Clock()		
