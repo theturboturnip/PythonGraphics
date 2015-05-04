@@ -29,7 +29,7 @@ def cast_ray(ray,start_point,length,objects):
 	closest_object=None
 	for obj in objects:
 		if FAST_RAYCAST:
-			distances=[obj.longest_length(start_point)]
+			distances=range(obj.closest_length(start_point),obj.longest_length(start_point))
 		else:
 			distances=range(length)
 		for distance in distances:
@@ -71,9 +71,9 @@ class Object:
 	def update(self):
 		self.light_color=(0,0,0,0)
 	def closest_length(self,pos):
-		return dist(self.pos,pos)
+		return int(dist(self.pos,pos))
 	def longest_length(self,pos):
-		return dist(self.pos,pos)
+		return self.closest_length(pos)
 
 class CircleObject(Object):
 	def __init__(self,pos=(0,0),radius=OBJ_RADIUS,color=OBJ_COLOR):
@@ -88,12 +88,19 @@ class CircleObject(Object):
 		pygame.draw.circle(surf,self.light_color,self.pos,self.radius,0)
 		screen.blit(surf,(0,0))	
 	def closest_length(self,pos):
-		return dist(self.pos,pos)-self.radius
+		return int(dist(self.pos,pos)-self.radius)
 	def longest_length(self,pos):
-		return dist(self.pos,pos)+self.radius
+		return int(dist(self.pos,pos)+(self.radius*0.75))
 class RectObject(Object):
-	def __init__(self,pos=[0,0,0,0],color=OBJ_COLOR):
+	def __init__(self,pos=[0,0],w=0,h=0,color=OBJ_COLOR):
+		if h==0:
+			h=w
+		pos+=[h,w]
 		Object.__init__(self,pos,color)
+		self.corners=[[self.pos[0],self.pos[1]],
+			     [self.pos[0]+self.pos[2],self.pos[1]],
+			     [self.pos[0]+self.pos[2],self.pos[1]+self.pos[3]],
+			     [self.pos[0],self.pos[1]+self.pos[3]]]
 	def colliding(self,point):
 		xvalid=self.pos[0]<point[0]<self.pos[0]+self.pos[2]
 		yvalid=self.pos[1]<point[1]<self.pos[1]+self.pos[3]
@@ -106,7 +113,25 @@ class RectObject(Object):
 		screen.blit(surf,(0,0))
 	def change_pos(self,pos):
 		self.pos[0],self.pos[1]=pos
-
+		self.corners=[[self.pos[0],self.pos[1]],
+			     [self.pos[0]+self.pos[2],self.pos[1]],
+			     [self.pos[0]+self.pos[2],self.pos[1]+self.pos[3]],
+			     [self.pos[0],self.pos[1]+self.pos[3]]]
+	def closest_length(self,pos):
+		smallest=-1
+		for p in self.corners:
+			d=dist(p,pos)
+			if d<smallest or smallest==-1:
+				smallest=d
+		return int(smallest*0.95)
+	def longest_length(self,pos):
+		longest=-1
+		for p in self.corners:
+			d=dist(p,pos)
+			if d>longest or longest==-1:
+				longest=d
+		return int(longest*1.05)
+			
 class Light:
 	def __init__(self,pos,total_strength,color=LIGHT_COLOR):
 		self.pos,self.total_strength=pos,total_strength
@@ -139,6 +164,9 @@ class Light:
 			degree_diff=90#int(90*(1.0-(dist(self.pos,obj)/self.total_strength)))
 			for i in range(bearing-degree_diff,bearing+degree_diff):
 				lines_to_recalc.append(i)
+			if obj.colliding(self.pos):
+				self.poly=[(0,0),(0,0),(0,0)]
+				return
 		for degree in lines_to_recalc:
 			d=degree-1
 			rayData=cast_ray(self.lines[d],self.pos,self.strength[d],objects)
@@ -155,7 +183,7 @@ class Light:
 	def refine_objs(self,objects):
 		toreturn=[]
 		for obj in objects:
-			print obj.closest_length(self.pos),self.strength
+
 			if obj.closest_length(self.pos)<self.strength:
 				toreturn.append(obj)
 		return toreturn
@@ -176,7 +204,7 @@ class Window:
 	def __init__(self):
 		pygame.init()
 		self.screen=pygame.display.set_mode((WIDTH,HEIGHT))
-		self.objects=[CircleObject([250,250],50)]
+		self.objects=[RectObject([250,250],50)]
 		self.lights=[Light((200,200),200)]
 		self.clock=pygame.time.Clock()		
 	def draw(self):
