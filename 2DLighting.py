@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-import pygame,sys,random,math
+import pygame,sys,random,math,os
+PATH=os.path.dirname(os.path.realpath(__file__))
+RESOURCES_PATH=PATH+"/Resources/"
 WIDTH=640	
 HEIGHT=480
 OBJ_RADIUS=5
@@ -9,6 +11,8 @@ LIGHT_COLOR=(255,255,0,122)
 CLEAR_COLOR=(0,0,0)
 FAST_RAYCAST=True
 
+def load_image(name):
+	return pygame.image.load(RESOURCES_PATH+name+".png")
 def floatrange(start,end,interval):
 	toreturn=[]
 	i=start
@@ -102,8 +106,8 @@ class RectObject(Object):
 			     [self.pos[0]+self.pos[2],self.pos[1]+self.pos[3]],
 			     [self.pos[0],self.pos[1]+self.pos[3]]]
 	def colliding(self,point):
-		xvalid=self.pos[0]<point[0]<self.pos[0]+self.pos[2]
-		yvalid=self.pos[1]<point[1]<self.pos[1]+self.pos[3]
+		xvalid=self.pos[0]<=point[0]<=self.pos[0]+self.pos[2]
+		yvalid=self.pos[1]<=point[1]<=self.pos[1]+self.pos[3]
 		return xvalid and yvalid
 	def draw(self,screen):
 		surf=pygame.Surface((WIDTH,HEIGHT)).convert_alpha()
@@ -131,7 +135,21 @@ class RectObject(Object):
 			if d>longest or longest==-1:
 				longest=d
 		return int(longest*1.05)
-			
+class SpriteObject(RectObject):
+	def __init__(self,pos=[0,0],img_path="favicon"):
+		self.image=load_image(img_path).convert_alpha()
+		self.w,self.h=self.image.get_width(),self.image.get_height()
+		RectObject.__init__(self,pos,self.w,self.h)
+	def draw(self,screen):
+		screen.blit(self.image,self.pos[:2])
+	def colliding(self,point):
+		relpoint=[point[i]-self.pos[i] for i in range(2)]
+		if relpoint[0]>=self.w or 0>relpoint[0]:	
+			return False
+		if relpoint[1]>=self.h or 0>relpoint[1]:
+			return False
+		return self.image.get_at(relpoint).a>0
+	
 class Light:
 	def __init__(self,pos,total_strength,color=LIGHT_COLOR):
 		self.pos,self.total_strength=pos,total_strength
@@ -204,7 +222,7 @@ class Window:
 	def __init__(self):
 		pygame.init()
 		self.screen=pygame.display.set_mode((WIDTH,HEIGHT))
-		self.objects=[RectObject([250,250],50)]
+		self.objects=[SpriteObject([250,250])]
 		self.lights=[Light((200,200),200)]
 		self.clock=pygame.time.Clock()		
 	def draw(self):
