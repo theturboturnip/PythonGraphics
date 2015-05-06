@@ -23,15 +23,9 @@ def rect_intersect(r1,r2):
 	if r2[1]>r1[1]+r1[3]:
 		return False
 	return True
-def refine_objs(objects,pos):
-	toreturn=[]
-	for obj in objects:
-		if obj.closest_length(pos)<self.strength:
-			toreturn.append(obj)
-	return toreturn
 def load_image(name):
 	return pygame.image.load(RESOURCES_PATH+name+".png")
-def floatrange(start,end,interval):
+def floatrange(start,end,interval=1):
 	toreturn=[]
 	i=start
 	while i<=end:
@@ -50,18 +44,17 @@ def cast_ray(ray,start_point,length,objects):
 	smallest_length=length
 	closest_object=None
 	for obj in objects:
-		if FAST_RAYCAST:
-			distances=range(obj.closest_length(start_point),obj.longest_length(start_point))
-		else:
-			distances=range(length)
+		distances=floatrange(obj.closest_length(start_point),obj.longest_length(start_point))
+
 		for distance in distances:
+			if distance>length:
+				break
 			point=[int(start_point[0]+(ray[0]*distance)),int(start_point[1]+(ray[1]*distance))]
-			if obj.colliding(point):
+			if obj.point_intersecting(point):
 				if smallest_length>distance:
 					smallest_length=distance
 					closest_object=obj
 				break
-	
 	endpoint=[int(start_point[0]+(ray[0]*smallest_length)),int(start_point[1]+(ray[1]*smallest_length))]
 	return endpoint,closest_object
 def calc_bearing(p1,p2):
@@ -81,6 +74,7 @@ class Object(object):
 		self.color=color
 		self.light_color=(0,0,0,0)
 		self.cached_state=[]
+		self.can_collide=True
 	def __getitem__(self,index):
 		return self.pos[index]
 	def point_intersecting(self,point):
@@ -91,13 +85,15 @@ class Object(object):
 		self.light_color=[clamp(int(self.light_color[i]+(color[i]*amount)),0,255) for i in range(0,4)]
 	def draw(self,screen):
 		pass
-	def update(self,objects):
+	def update(self,objects,deltaTime):
 		self.light_color=(0,0,0,0)
 		self.chached_state=objects[:]
 		self.chached_state.remove(self)
-		for obj in self.chached_state:
-			if self.colliding(obj):
-				self.collided_with(obj)
+	def check_collisions(self):
+		if self.can_collide:
+			for obj in self.chached_state:
+				if self.colliding(obj):
+					self.collided_with(obj)
 	def collided_with(self,obj):
 		print self,obj.pos
 	def closest_length(self,pos):
@@ -125,10 +121,11 @@ class CircleObject(Object):
 	def longest_length(self,pos):
 		return int(dist(self.pos,pos)+(self.radius*0.75))
 	def colliding(self,obj):
-		if type(obj)==CircleObject:
-			return dist(self,obj)<=(self.radius+obj.radius)
-		else:
-			return obj.closest_length(self)<self.radius
+		if obj.can_collide:
+			if type(obj)==CircleObject:
+				return dist(self,obj)<=(self.radius+obj.radius)
+			else:
+				return obj.closest_length(self)<self.radius
 class RectObject(Object):
 	def __init__(self,pos=[0,0],w=20,h=0,color=OBJ_COLOR):
 		if h==0:
@@ -170,12 +167,13 @@ class RectObject(Object):
 				longest=d
 		return int(longest*1.05)
 	def colliding(self,obj):
-		if type(obj)==CircleObject:
-			return self.closest_length(obj)<obj.radius
-		elif type(obj) in [RectObject,SpriteObject]:
-			return rect_intersect(self,obj)
-		else:
-			return False
+		if obj.can_collide:
+			if type(obj)==CircleObject:
+				return self.closest_length(obj)<obj.radius
+			elif type(obj) in [RectObject,SpriteObject]:
+				return rect_intersect(self,obj)
+			else:
+				return False
 
 class SpriteObject(RectObject):
 	def __init__(self,pos=[0,0],img_path="favicon"):
@@ -196,14 +194,15 @@ class RoomObject(Object):
 	def __init__(self,w,h):
 		self.w,self.h=w,h
 		self.pos=[0,0,w,h]
+		self.can_collide=True
 	def colliding(self,obj):
-		if type(obj)==CircleObject:
-			x,y=obj.pos
-			if x<obj.radius or x>self.w-obj.radius:
-				return True
-			if y<obj.radius or y>self.h-obj.radius:
-				return True
-		else:
-
-			return (not rect_intersect(self,obj))
+		if obj.can_collide:
+			if type(obj)==CircleObject:
+				x,y=obj.pos
+				if x<obj.radius or x>self.w-obj.radius:
+					return True
+				if y<obj.radius or y>self.h-obj.radius:
+					return True
+			else:
+				return (not rect_intersect(self,obj))
 
