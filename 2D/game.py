@@ -20,7 +20,8 @@ class Window:
 	def __init__(self):
 		pygame.init()
 		self.screen=pygame.display.set_mode((WIDTH,HEIGHT))
-		self.objects=[RoomObject(WIDTH,HEIGHT),RectObject([250,400],80),CircleObject([500,250],50),Character([250,250],75,PlayerController())]#,Light([50,50],200)]
+		self.objects=[RoomObject(WIDTH,HEIGHT),RectObject([50,90],80),CircleObject([500,250],50),Character([250,250],200,PlayerController())]
+		self.objects.append(BakeableLight([50,50],200,baked=True,objects=self.objects))
 		self.clock=pygame.time.Clock()		
 	def draw_objs(self):
 		for obj in self.objects:
@@ -30,7 +31,7 @@ class Window:
 			obj.update(self.objects,self.deltaTime)
 	def loop(self):
 		while True:
-			self.deltaTime=self.clock.tick(30)/1000.0
+			self.deltaTime=self.clock.tick(60)/1000.0
 			for event in pygame.event.get():
 				if event.type==pygame.QUIT:
 					self.quit()

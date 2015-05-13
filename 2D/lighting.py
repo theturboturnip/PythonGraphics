@@ -34,6 +34,9 @@ class Light(Object):
 		for obj in objects:
 			if obj.closest_length(self.pos)<self.strength:
 				toreturn.append(obj)
+			for s_obj in obj.sub_objects:
+				if s_obj.closest_length(self.pos)<self.strength:
+					toreturn.append(s_obj)
 		return toreturn
 	def check_rays(self,objects):
 		lines_to_recalc=[]
@@ -71,10 +74,30 @@ class Light(Object):
 	def change_pos(self,pos):
 		self.pos=pos
 		self.check_rays([])
-	def draw(self,screen):
+	def draw_me(self,screen):
 		surf=pygame.Surface((WIDTH,HEIGHT)).convert_alpha()
 		surf.fill((0,0,0,0))
 		pygame.draw.polygon(surf,self.color,self.poly[::self.LOD],0)
 		screen.blit(surf, (0,0))
 
 
+class BakeableLight(Light):
+	def __init__(self,pos,total_strength,color=LIGHT_COLOR,baked=False,objects=[]):
+		Light.__init__(self,pos,total_strength,color=LIGHT_COLOR)	
+		self.baked=baked
+		if self.baked:
+			self.check_rays(objects)
+			self.bake()
+	def bake(self):
+		self.baked=True
+		for i in range(360):
+			self.strength[i]=dist(self.poly[i],self.pos)
+	def unbake(self):
+		self.baked=False
+		for i in range(360):
+			self.strength[i]=self.total_strength
+	def update(self,objects,deltaTime):
+		if self.baked:
+			return
+		else:
+			Light.update(self,objects,deltaTime)

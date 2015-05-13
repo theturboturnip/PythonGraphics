@@ -26,9 +26,10 @@ def rect_intersect(r1,r2):
 def load_image(name):
 	return pygame.image.load(RESOURCES_PATH+name+".png")
 def floatrange(start,end,interval=1):
-	toreturn=[]
+	if end<start: interval=-1
+	toreturn=[start]
 	i=start
-	while i<=end:
+	while (i<end and interval>0) or (i>end and interval<0):
 		i+=interval
 		toreturn.append(i)
 	return toreturn		
@@ -69,11 +70,15 @@ def clamp(toclamp,min_,max_):
 	return toclamp
 
 class Object(object):
-	def __init__(self,pos=(0,0),color=OBJ_COLOR):
+	def __init__(self,pos=(0,0),color=OBJ_COLOR,sub_objects=[]):
 		self.pos=pos
 		self.color=color
 		self.light_color=(0,0,0,0)
 		self.cached_state=[]
+		self.sub_objects=sub_objects
+		self.rel_sub_objects_positions=[]
+		for s_obj in self.sub_objects:
+			self.rel_sub_objects_positions.append(s_obj.pos[:2])
 		self.can_collide=True
 	def __getitem__(self,index):
 		return self.pos[index]
@@ -83,34 +88,45 @@ class Object(object):
 		self.pos=pos
 	def add_light_color(self,color,amount=1.0):
 		self.light_color=[clamp(int(self.light_color[i]+(color[i]*amount)),0,255) for i in range(0,4)]
-	def draw(self,screen):
+	def draw_me(self,screen):
 		pass
 	def update(self,objects,deltaTime):
 		self.light_color=(0,0,0,0)
 		self.chached_state=objects[:]
 		self.chached_state.remove(self)
+	def update_sub_objs(self):
+		for i in range(len(self.sub_objects)):
+			s_obj=self.sub_objects[i]
+			rel_pos=self.rel_sub_objects_positions[i]
+			s_obj.pos[0]=rel_pos[0]+self.pos[0]
+			s_obj.pos[1]=rel_pos[1]+self.pos[1]
 	def check_collisions(self):
 		if self.can_collide:
 			for obj in self.chached_state:
 				if self.colliding(obj):
 					self.collided_with(obj)
+					return True
 	def collided_with(self,obj):
-		print self,obj.pos
+		pass
 	def closest_length(self,pos):
 		return int(dist(self.pos,pos))
 	def longest_length(self,pos):
 		return self.closest_length(pos)
 	def colliding(self,obj):
 		return False
+	def draw(self,screen):
+		self.draw_me(screen)
+		for obj in self.sub_objects:
+			obj.draw_me(screen)
 
 class CircleObject(Object):
-	def __init__(self,pos=(0,0),radius=OBJ_RADIUS,color=OBJ_COLOR):
-		Object.__init__(self,pos,color)
+	def __init__(self,pos=(0,0),radius=OBJ_RADIUS,color=OBJ_COLOR,sub_objects=[]):
+		Object.__init__(self,pos,color,sub_objects)
 		self.radius=radius
 		
 	def point_intersecting(self,point):
 		return dist(self.pos,point)<=self.radius
-	def draw(self,screen):
+	def draw_me(self,screen):
 		surf=pygame.Surface((WIDTH,HEIGHT)).convert_alpha()
 		surf.fill((0,0,0,0))
 		pygame.draw.circle(screen,self.color,self.pos,self.radius,0)
@@ -127,20 +143,17 @@ class CircleObject(Object):
 			else:
 				return obj.closest_length(self)<self.radius
 class RectObject(Object):
-	def __init__(self,pos=[0,0],w=20,h=0,color=OBJ_COLOR):
+	def __init__(self,pos=[0,0],w=20,h=0,color=OBJ_COLOR,sub_objects=[]):
 		if h==0:
 			h=w
-		pos+=[h,w]
-		Object.__init__(self,pos,color)
-		self.corners=[[self.pos[0],self.pos[1]],
-			     [self.pos[0]+self.pos[2],self.pos[1]],
-			     [self.pos[0]+self.pos[2],self.pos[1]+self.pos[3]],
-			     [self.pos[0],self.pos[1]+self.pos[3]]]
+		pos+=[w,h]
+		Object.__init__(self,pos,color,sub_objects)
+		self.set_corners()
 	def point_intersecting(self,point):
 		xvalid=self.pos[0]<=point[0]<=self.pos[0]+self.pos[2]
 		yvalid=self.pos[1]<=point[1]<=self.pos[1]+self.pos[3]
 		return xvalid and yvalid
-	def draw(self,screen):
+	def draw_me(self,screen):
 		surf=pygame.Surface((WIDTH,HEIGHT)).convert_alpha()
 		surf.fill((0,0,0,0))
 		pygame.draw.rect(screen,self.color,self.pos,0)
@@ -148,6 +161,8 @@ class RectObject(Object):
 		screen.blit(surf,(0,0))
 	def change_pos(self,pos):
 		self.pos[0],self.pos[1]=pos
+		self.set_corners()
+	def set_corners(self):
 		self.corners=[[self.pos[0],self.pos[1]],
 			     [self.pos[0]+self.pos[2],self.pos[1]],
 			     [self.pos[0]+self.pos[2],self.pos[1]+self.pos[3]],
@@ -172,15 +187,17 @@ class RectObject(Object):
 				return self.closest_length(obj)<obj.radius
 			elif type(obj) in [RectObject,SpriteObject]:
 				return rect_intersect(self,obj)
+			elif type(obj) == RoomObject:
+				return obj.colliding(self)
 			else:
 				return False
 
 class SpriteObject(RectObject):
-	def __init__(self,pos=[0,0],img_path="favicon"):
+	def __init__(self,pos=[0,0],img_path="favicon",sub_objects=[]):
 		self.image=load_image(img_path).convert_alpha()
 		self.w,self.h=self.image.get_width(),self.image.get_height()
-		RectObject.__init__(self,pos,self.w,self.h)
-	def draw(self,screen):
+		RectObject.__init__(self,pos,self.w,self.h,sub_objects=sub_objects)
+	def draw_me(self,screen):
 		screen.blit(self.image,self.pos[:2])
 	def point_intersecting(self,point):
 		relpoint=[point[i]-self.pos[i] for i in range(2)]
@@ -195,6 +212,9 @@ class RoomObject(Object):
 		self.w,self.h=w,h
 		self.pos=[0,0,w,h]
 		self.can_collide=True
+		self.sub_objects=[]
+	def update(self,objs,dtime):
+		pass
 	def colliding(self,obj):
 		if obj.can_collide:
 			if type(obj)==CircleObject:
@@ -204,5 +224,7 @@ class RoomObject(Object):
 				if y<obj.radius or y>self.h-obj.radius:
 					return True
 			else:
-				return (not rect_intersect(self,obj))
+				xvalid=(0<=obj.pos[0]<=self.w-obj.pos[2])
+				yvalid=(0<=obj.pos[1]<=self.h-obj.pos[3])
+				return not (xvalid and yvalid)
 
