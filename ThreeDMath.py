@@ -165,7 +165,10 @@ class DrawablePolygon(Transform):
 class TexturedPolygon(DrawablePolygon):
 	def __init__(self,position,rotation,w,h,img_path,parent=None):
 		pointlist=[Point(-w/2,-h/2,0),Point(w/2,-h/2,0),Point(w/2,h/2,0),Point(-w/2,h/2,0)]
-		self.img=pygame.image.load(img_path)
+		if type(img_path)==str:
+			self.img=pygame.image.load(img_path)
+		else:
+			self.img=img_path
 		DrawablePolygon.__init__(self,position,rotation,pointlist,parent)
 		
 		self.equivalent=DrawablePolygon(position,rotation,pointlist,parent)
@@ -200,22 +203,24 @@ class Mouse:
 		self.pos=pygame.mouse.get_pos()
 		self.buttons=pygame.mouse.get_pressed()
 
-class Player:
+class World:
 	def __init__(self):
 		pygame.init()
 		self.clock = pygame.time.Clock()
 		self.camera=Camera([0,0,0],[0,0,0],SCREEN_DATA)
+		#Variables in caps are for subclasses to modify
 		self.POLYS=[]
-		self.TEX_POLYS=[TexturedPolygon([0,0,10],[0,0,0],5,5,'/home/theturboturnip/Desktop/wall.jpg',parent=Transform([0,0,5],[0,0,0]))]
-		self.mouse=Mouse()
+		self.TEX_POLYS=[]
+		self.MOUSE=Mouse()
+		self.FPS=60
 	def loop(self):
 		while True:
-			msElapsed = self.clock.tick(60) 
+			msElapsed = self.clock.tick(self.FPS) 
 			deltaTime=msElapsed/1000.0
 			self.camera.clear_screen()
 			self.keys=pygame.key.get_pressed()
-			self.mouse.update()
-			self.update()#This is to allow subclasses of the player to affect the world in real time
+			self.MOUSE.update()
+			self.update(deltaTime)
 			for event in pygame.event.get():
 				if event.type==pygame.QUIT:
 					pygame.quit();sys.exit();
@@ -225,11 +230,9 @@ class Player:
 				self.camera.draw_poly(p.equivalent)
 				self.camera.draw_textured_poly(p)
 			self.camera.update()
-	def update(self):
-		pass #This is for subclasses to modify
+	def update(self,deltaTime):
+		pass#This is for subclasses to modify
 
-#p=Player()
-#p.loop()
 
 
 
