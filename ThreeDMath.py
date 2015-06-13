@@ -5,7 +5,12 @@ AXES=['x','y','z']
 
 from PIL import Image
 import numpy
-
+def Distance(p1,p2):
+	pos1=p1.get_pos()
+	pos2=p2.get_pos()
+	x,y,z=pos2-pos1
+	return math.sqrt(x**2+y**2+z**2)
+	
 def find_coeffs(pb, pa):
 	matrix = []
 	for p1, p2 in zip(pa, pb):
@@ -161,6 +166,8 @@ class DrawablePolygon(Transform):
 				par=par.parent
 			points.append(callback(rel)[0])
 		return points
+	def draw(self,camera):
+		camera.draw_poly(self)
 
 class TexturedPolygon(DrawablePolygon):
 	def __init__(self,position,rotation,w,h,img_path,parent=None):
@@ -195,6 +202,9 @@ class TexturedPolygon(DrawablePolygon):
 		for i in reversed(range(0,4)):
 			rev_points[i]=[points[i][0]-left,points[i][1]-top]
 		return [(left,top),(width,height)],points,rev_points
+	def draw(self,camera):
+		camera.draw_poly(self.equivalent)
+		camera.draw_textured_poly(self)
 
 class Mouse:
 	pos=[0,0]
@@ -224,12 +234,27 @@ class World:
 			for event in pygame.event.get():
 				if event.type==pygame.QUIT:
 					pygame.quit();sys.exit();
-			for p in self.POLYS:
-				self.camera.draw_poly(p)
-			for p in self.TEX_POLYS:
-				self.camera.draw_poly(p.equivalent)
-				self.camera.draw_textured_poly(p)
+			total_polys=self.POLYS+self.TEX_POLYS
+			self.calc_dists(total_polys)
+			total_polys=self.order_polys(total_polys)
+			
+			for p in total_polys:
+				p.draw(self.camera)
 			self.camera.update()
+	def calc_dists(self,total_polys):
+		for poly in total_polys:
+			poly.dist=Distance(self.camera,poly)
+	def order_polys(self,total_polys):
+		for i in range(1,len(total_polys)):
+			poly=total_polys[i]
+			prev_poly=total_polys[i-1]
+			if poly.dist>prev_poly.dist:
+				temp=poly
+				total_polys[i]=prev_poly
+				total_polys[i-1]=temp
+				self.order_polys(total_polys)
+		return total_polys
+			
 	def update(self,deltaTime):
 		pass#This is for subclasses to modify
 

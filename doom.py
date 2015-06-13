@@ -16,8 +16,7 @@ class Doom(ThreeDMath.World):
 		ThreeDMath.World.__init__(self)
 		self.FPS=30
 		self.TEX_POLYS.append(Wall([0,0,5],[0,0,0],2,1))
-		print self.TEX_POLYS
-	#def update(self):
+		self.TEX_POLYS.append(Wall([2,0,6],[0,0,0],1,2))
 	
 
 d=Doom()
