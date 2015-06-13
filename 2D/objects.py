@@ -98,8 +98,8 @@ class Object(object):
 		for i in range(len(self.sub_objects)):
 			s_obj=self.sub_objects[i]
 			rel_pos=self.rel_sub_objects_positions[i]
-			s_obj.pos[0]=rel_pos[0]+self.pos[0]
-			s_obj.pos[1]=rel_pos[1]+self.pos[1]
+			for i in range(len(list(set(s_obj.pos) and set(self.pos)))):
+				s_obj.pos[i]=rel_pos[i]+self.pos[i]
 	def check_collisions(self):
 		if self.can_collide:
 			for obj in self.chached_state:

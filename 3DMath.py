@@ -2,6 +2,7 @@
 import math,pygame,sys
 SCREEN_DATA=[640,480,90,45]
 AXES=['x','y','z']
+
 from PIL import Image
 import numpy
 
@@ -49,33 +50,9 @@ def PointListSum(l):
 		total+=p
 	return total
 
-def RotateCamera(keys,cam,deltaTime,moveSpeed=1,should_move=False,should_rotate=True):
-	if should_rotate:
-		if keys[pygame.K_LEFT]:
-			cam.rotate_around(deltaTime*moveSpeed,'y')
-		elif keys[pygame.K_RIGHT]:
-			cam.rotate_around(-deltaTime*moveSpeed,'y')
-		if keys[pygame.K_UP]:
-			cam.rotate_around(deltaTime*moveSpeed,'x')	
-		elif keys[pygame.K_DOWN]:
-			cam.rotate_around(-deltaTime*moveSpeed,'x')
-		if keys[pygame.K_q]:
-			cam.rotate_around(deltaTime*moveSpeed,'z')	
-		elif keys[pygame.K_e]:
-			cam.rotate_around(-deltaTime*moveSpeed,'z')
-	if should_move:
-		if keys[pygame.K_w]:
-			cam.translate(Point(0,0,1)*deltaTime)
-		if keys[pygame.K_a]:
-			cam.translate(Point(-1,0,0)*deltaTime)	
-		if keys[pygame.K_s]:
-			cam.translate(Point(0,0,-1)*deltaTime)
-		if keys[pygame.K_d]:
-			cam.translate(Point(1,0,0)*deltaTime)
-
 class Transform:
 	def __init__(self,pos,rot,parent=None):
-		self.position,self.rotation,self.parent=pos,rot,parent
+		self.position,self.rotation,self.parent=Point(pos),rot,parent
 	def get_pos(self):
 		if self.parent!=None:
 			return self.position+self.parent.get_pos()
@@ -87,7 +64,11 @@ class Transform:
 		return self.rotation[index]
 
 class Point:
-	def __init__(self,x,y,z):
+	def __init__(self,x,y=None,z=None):
+		if y==None:
+			y=x[1]
+			z=x[2]
+			x=x[0]
 		self.x,self.y,self.z=x*1.0,y*1.0,z*1.0
 		self.world_pos=[self.x,self.y,self.z]
 	def __add__(self,p):
@@ -102,6 +83,8 @@ class Point:
 		return not self.__eq__(p)
 	def __eq__(self,p):
 		return (p.x==self.x) and (p.y==self.y) and (p.z==self.z)
+	def __getitem__(self,index):
+		return self.world_pos[index]
 	def rotate(self,center,angle=0,axis='x'):
 		p=Point(self.x,self.y,self.z)-center
 		s = math.sin(math.radians(angle))
@@ -118,9 +101,9 @@ class Point:
 		p+=center
 		return p
 	def __repr__(self):
-		return str(self.world_pos)
+		return "Point"+str(self.world_pos)
 
-class CameraClass(Transform):
+class Camera(Transform):
 	def __init__(self,position=Point(0,0,0),rotation=[0,0,0],screen_data=SCREEN_DATA):
 		Transform.__init__(self,position,rotation)
 		screen_data[3]=((1.0*screen_data[1]*screen_data[2])/screen_data[0])
@@ -210,41 +193,43 @@ class TexturedPolygon(DrawablePolygon):
 			rev_points[i]=[points[i][0]-left,points[i][1]-top]
 		return [(left,top),(width,height)],points,rev_points
 
+class Mouse:
+	pos=[0,0]
+	buttons=[0,0,0]
+	def update(self):
+		self.pos=pygame.mouse.get_pos()
+		self.buttons=pygame.mouse.get_pressed()
 
 class Player:
 	def __init__(self):
 		pygame.init()
 		self.clock = pygame.time.Clock()
-		self.camera=CameraClass(Point(0,0,0),[0.0,0.0,0.0],SCREEN_DATA)
+		self.camera=Camera([0,0,0],[0,0,0],SCREEN_DATA)
 		self.POLYS=[]
-		self.TEX_POLYS=[TexturedPolygon(Point(0,0,10),[0,0,0],5,5,'/home/theturboturnip/Desktop/wall.jpg')]#,Transform(Point(0,0,0),[0,0,56]))]
-		self.target_mouse_pos=[0,0]
-		for i in range(0,2):
-			self.target_mouse_pos[i]=self.camera.screen_data[i]*0.25
+		self.TEX_POLYS=[TexturedPolygon([0,0,10],[0,0,0],5,5,'/home/theturboturnip/Desktop/wall.jpg',parent=Transform([0,0,5],[0,0,0]))]
+		self.mouse=Mouse()
 	def loop(self):
 		while True:
 			msElapsed = self.clock.tick(60) 
 			deltaTime=msElapsed/1000.0
 			self.camera.clear_screen()
-			keys=pygame.key.get_pressed()
+			self.keys=pygame.key.get_pressed()
+			self.mouse.update()
+			self.update()#This is to allow subclasses of the player to affect the world in real time
 			for event in pygame.event.get():
 				if event.type==pygame.QUIT:
 					pygame.quit();sys.exit();
-			self.rotate_cam_first_person()			
-			RotateCamera(keys,self.camera,deltaTime,10)
 			for p in self.POLYS:
 				self.camera.draw_poly(p)
 			for p in self.TEX_POLYS:
-				p.rotation[1]+=1
 				self.camera.draw_poly(p.equivalent)
 				self.camera.draw_textured_poly(p)
 			self.camera.update()
+	def update(self):
+		pass #This is for subclasses to modify
 
-	def rotate_cam_first_person(self):
-		pass
-
-p=Player()
-p.loop()
+#p=Player()
+#p.loop()
 
 
 
