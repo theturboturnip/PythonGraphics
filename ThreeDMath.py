@@ -48,7 +48,8 @@ def RotatedAround(RelPos,transform):
 	for axis in AXES:
 		RelPos=RelPos.rotate(TransPos,-transform.get_rot(axis),axis)
 	return RelPos
-
+def PolyBehindTransform(poly,transform):
+	return (poly.get_pos(2)<=transform.get_pos(2))
 def PointListSum(l):
 	total=Point(0,0,0)
 	for p in l:
@@ -113,7 +114,7 @@ class Camera(Transform):
 		Transform.__init__(self,position,rotation)
 		screen_data[3]=((1.0*screen_data[1]*screen_data[2])/screen_data[0])
 		self.screen_data=screen_data
-		self.screen=pygame.display.set_mode((SCREEN_DATA[0],SCREEN_DATA[1]))
+		self.screen=pygame.Surface((screen_data[0],screen_data[1]))
 	def Rasterize(self,WorldPoint):
 		RelPoint=RelativeToTransform(WorldPoint,self)
 		ScrWidth,ScrHeight,FOV,VERT_FOV=self.screen_data
@@ -135,8 +136,23 @@ class Camera(Transform):
 		start,points,scale_pts=p.rasterize(self.Rasterize)
 		img=deform_img(img=p.img,perspective_rect=scale_pts,dimensions=scale_pts[2],full_dimensions=start[1])
 		self.screen.blit(img,start[0])
-	def update(self):
-		pygame.display.flip()
+	def draw_all(self,polys):
+		polys=self.order_polys(polys)
+		for poly in polys:
+			poly.draw(self,polys)
+	def order_polys(self,total_polys):
+		for i in range(1,len(total_polys)):
+			poly=total_polys[i]
+			prev_poly=total_polys[i-1]
+			if PolyBehindTransform(prev_poly,self):
+				total_polys.pop(i-1)
+				return self.order_polys(total_polys)
+			if poly.dist>prev_poly.dist:
+				temp=poly
+				total_polys[i]=prev_poly
+				total_polys[i-1]=temp
+				return self.order_polys(total_polys)
+		return total_polys
 	def translate(self,direction):
 		rel_direc=Point(direction.x*math.cos(math.radians(self.rotation[1])),direction.y*1.0,direction.z*math.cos(math.radians(self.rotation[1])))
 		self.position+=rel_direc
@@ -149,6 +165,7 @@ class DrawablePoint(Point):
 		self.screen_pos=cam.Rasterize(self.world_pos)
 
 class DrawablePolygon(Transform):
+	is_mirror=False
 	def __init__(self,position,rotation,pointlist,parent=None):
 		Transform.__init__(self,position,rotation,parent)
 		self.pointlist=pointlist
@@ -166,23 +183,24 @@ class DrawablePolygon(Transform):
 				par=par.parent
 			points.append(callback(rel)[0])
 		return points
-	def draw(self,camera):
+	def draw(self,camera,total_polys):
 		camera.draw_poly(self)
-
-class TexturedPolygon(DrawablePolygon):
-	def __init__(self,position,rotation,w,h,img_path,parent=None):
+class SquarePolygon(DrawablePolygon):
+	def __init__(self,position,rotation,w,h,parent=None):
 		pointlist=[Point(-w/2,-h/2,0),Point(w/2,-h/2,0),Point(w/2,h/2,0),Point(-w/2,h/2,0)]
+		DrawablePolygon.__init__(self,position,rotation,pointlist,parent)
+class TexturedPolygon(SquarePolygon):
+	def __init__(self,position,rotation,w,h,img_path,parent=None):
+		SquarePolygon.__init__(self,position,rotation,w,h,parent)
 		if type(img_path)==str:
 			self.img=pygame.image.load(img_path)
 		else:
 			self.img=img_path
-		DrawablePolygon.__init__(self,position,rotation,pointlist,parent)
-		
-		self.equivalent=DrawablePolygon(position,rotation,pointlist,parent)
+		self.equivalent=SquarePolygon(position,rotation,w,h,parent)
 	def __getitem__(self,index):
 		return self.pointlist[index]
 	def rasterize(self,callback):
-		points=DrawablePolygon.rasterize(self,callback)
+		points=SquarePolygon.rasterize(self,callback)
 		rev_points=[0,0,0,0]
 		left=points[0][0]
 		top=points[0][1]
@@ -202,9 +220,25 @@ class TexturedPolygon(DrawablePolygon):
 		for i in reversed(range(0,4)):
 			rev_points[i]=[points[i][0]-left,points[i][1]-top]
 		return [(left,top),(width,height)],points,rev_points
-	def draw(self,camera):
+	def draw(self,camera,total_polys):
 		camera.draw_poly(self.equivalent)
 		camera.draw_textured_poly(self)
+class Mirror(TexturedPolygon):
+	is_mirror=True
+	def __init__(self,pos,rot,w,h,parent=None):
+		camrot=rot
+		camrot[1]+=180
+		self.camera=Camera(pos,rot,[w,h,90,45])
+		TexturedPolygon.__init__(self,pos,rot,w,h,self.camera.screen)
+	def draw(self,world_cam,total_polys):
+		self.camera.clear_screen()
+		total_polys=self.camera.order_polys(total_polys)
+		for poly in total_polys:
+			if not poly.is_mirror:
+				poly.draw(self.camera,None)
+		self.img=self.camera.screen
+		world_cam.draw_textured_poly(self)
+
 
 class Mouse:
 	pos=[0,0]
@@ -218,9 +252,10 @@ class World:
 		pygame.init()
 		self.clock = pygame.time.Clock()
 		self.camera=Camera([0,0,0],[0,0,0],SCREEN_DATA)
-		#Variables in caps are for subclasses to modify
-		self.POLYS=[]
-		self.TEX_POLYS=[]
+		self.screen=pygame.display.set_mode((SCREEN_DATA[0],SCREEN_DATA[1]))
+		#Variables in caps are for subclasses to modify or use
+		self.POLYS=[SquarePolygon([0,0,-1],[0,0,0],1,0.5)]
+		self.TEX_POLYS=[Mirror([0,0,5],[0,0,0],3,3)]
 		self.MOUSE=Mouse()
 		self.FPS=60
 	def loop(self):
@@ -236,29 +271,19 @@ class World:
 					pygame.quit();sys.exit();
 			total_polys=self.POLYS+self.TEX_POLYS
 			self.calc_dists(total_polys)
-			total_polys=self.order_polys(total_polys)
-			
-			for p in total_polys:
-				p.draw(self.camera)
-			self.camera.update()
+			self.camera.draw_all(total_polys)
+			pygame.display.flip()
+			self.screen.blit(self.camera.screen,(0,0))
 	def calc_dists(self,total_polys):
 		for poly in total_polys:
 			poly.dist=Distance(self.camera,poly)
-	def order_polys(self,total_polys):
-		for i in range(1,len(total_polys)):
-			poly=total_polys[i]
-			prev_poly=total_polys[i-1]
-			if poly.dist>prev_poly.dist:
-				temp=poly
-				total_polys[i]=prev_poly
-				total_polys[i-1]=temp
-				self.order_polys(total_polys)
-		return total_polys
+	
 			
 	def update(self,deltaTime):
 		pass#This is for subclasses to modify
 
-
+w=World()
+w.loop()
 
 
 
