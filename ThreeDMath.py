@@ -29,7 +29,6 @@ def deform_img(img,perspective_rect,dimensions,full_dimensions):
 	try:
 		w,h=dimensions
 		pygame_img=pygame.transform.scale(pygame_img,(w,h))
-		
 		img=Image.fromstring("RGBA",(w,h),pygame.image.tostring(pygame_img,"RGBA"))
 		coeffs=find_coeffs([(0,0),(w,0),(w,h),(0,h)],perspective_rect)
 		img=img.transform(full_dimensions, Image.PERSPECTIVE, coeffs)
@@ -115,6 +114,7 @@ class Camera(Transform):
 		screen_data[3]=((1.0*screen_data[1]*screen_data[2])/screen_data[0])
 		self.screen_data=screen_data
 		self.screen=pygame.Surface((screen_data[0],screen_data[1]))
+		self.FOV,self.VERT_FOV=self.screen_data[2:]
 	def Rasterize(self,WorldPoint):
 		RelPoint=RelativeToTransform(WorldPoint,self)
 		ScrWidth,ScrHeight,FOV,VERT_FOV=self.screen_data
@@ -134,17 +134,18 @@ class Camera(Transform):
 		pygame.draw.polygon(self.screen,(0,0,0),points)
 	def draw_textured_poly(self,p):
 		start,points,scale_pts=p.rasterize(self.Rasterize)
-		img=deform_img(img=p.img,perspective_rect=scale_pts,dimensions=scale_pts[2],full_dimensions=start[1])
+		img=deform_img(img=p.img,perspective_rect=scale_pts,dimensions=start[1],full_dimensions=start[1])
 		self.screen.blit(img,start[0])
 	def draw_all(self,polys):
+		complete_polys=polys[:]
 		polys=self.order_polys(polys)
 		for poly in polys:
-			poly.draw(self,polys)
+			poly.draw(self,complete_polys)
 	def order_polys(self,total_polys):
 		for i in range(1,len(total_polys)):
 			poly=total_polys[i]
 			prev_poly=total_polys[i-1]
-			if PolyBehindTransform(prev_poly,self):
+			if self.poly_visible(prev_poly):
 				total_polys.pop(i-1)
 				return self.order_polys(total_polys)
 			if poly.dist>prev_poly.dist:
@@ -156,6 +157,18 @@ class Camera(Transform):
 	def translate(self,direction):
 		rel_direc=Point(direction.x*math.cos(math.radians(self.rotation[1])),direction.y*1.0,direction.z*math.cos(math.radians(self.rotation[1])))
 		self.position+=rel_direc
+	def poly_visible(self,poly):
+		selfpos=self.get_pos()
+		polypos=poly.get_pos()
+		y_angle=math.degrees(math.atan2(selfpos[0]-polypos[0],selfpos[2]-polypos[2]))
+		lowest_y_angle=self.get_rot('y')-self.FOV/2
+		highest_y_angle=self.get_rot('y')+self.FOV/2
+		x_angle=math.degrees(math.atan2(selfpos[1]-polypos[1],selfpos[2]-polypos[2]))
+		lowest_x_angle=self.get_rot('x')-self.VERT_FOV/2
+		highest_x_angle=self.get_rot('x')+self.VERT_FOV/2
+		if lowest_x_angle<=x_angle<=highest_x_angle and lowest_y_angle<=y_angle<=highest_y_angle:
+			return True
+		return False
 
 class DrawablePoint(Point):
 	def __init__(self,x,y,z):
@@ -173,7 +186,7 @@ class DrawablePolygon(Transform):
 	def __getitem__(self,index):
 		return self.pointlist[index]
 	def rasterize(self,callback):
-		center_point=PointListSum(self.pointlist)/4.0
+		center_point=self.get_pos()
 		points=[]
 		for p in self.pointlist:
 			rel=(RotatedAround(p,Transform(center_point,self.rotation))+self.get_pos())
@@ -190,13 +203,13 @@ class SquarePolygon(DrawablePolygon):
 		pointlist=[Point(-w/2,-h/2,0),Point(w/2,-h/2,0),Point(w/2,h/2,0),Point(-w/2,h/2,0)]
 		DrawablePolygon.__init__(self,position,rotation,pointlist,parent)
 class TexturedPolygon(SquarePolygon):
-	def __init__(self,position,rotation,w,h,img_path,parent=None):
+	def __init__(self,position,rotation,w,h,img_path,parent=None,outline=False):
 		SquarePolygon.__init__(self,position,rotation,w,h,parent)
 		if type(img_path)==str:
 			self.img=pygame.image.load(img_path)
 		else:
 			self.img=img_path
-		self.equivalent=SquarePolygon(position,rotation,w,h,parent)
+		
 	def __getitem__(self,index):
 		return self.pointlist[index]
 	def rasterize(self,callback):
@@ -228,8 +241,8 @@ class Mirror(TexturedPolygon):
 	def __init__(self,pos,rot,w,h,parent=None):
 		camrot=rot
 		camrot[1]+=180
-		self.camera=Camera(pos,rot,[w,h,90,45])
-		TexturedPolygon.__init__(self,pos,rot,w,h,self.camera.screen)
+		self.camera=Camera(pos,rot,SCREEN_DATA)
+		TexturedPolygon.__init__(self,pos,rot,w,h,self.camera.screen,outline=True)
 	def draw(self,world_cam,total_polys):
 		self.camera.clear_screen()
 		total_polys=self.camera.order_polys(total_polys)
@@ -237,7 +250,9 @@ class Mirror(TexturedPolygon):
 			if not poly.is_mirror:
 				poly.draw(self.camera,None)
 		self.img=self.camera.screen
+		world_cam.draw_poly(self.equivalent)
 		world_cam.draw_textured_poly(self)
+
 
 
 class Mouse:
@@ -254,7 +269,7 @@ class World:
 		self.camera=Camera([0,0,0],[0,0,0],SCREEN_DATA)
 		self.screen=pygame.display.set_mode((SCREEN_DATA[0],SCREEN_DATA[1]))
 		#Variables in caps are for subclasses to modify or use
-		self.POLYS=[SquarePolygon([0,0,-1],[0,0,0],1,0.5)]
+		self.POLYS=[SquarePolygon([0,0,-1],[0,0,0],3,3)]
 		self.TEX_POLYS=[Mirror([0,0,5],[0,0,0],3,3)]
 		self.MOUSE=Mouse()
 		self.FPS=60
